@@ -69,6 +69,13 @@ def write_array(f, array, shape, indent=2):
     f.write("\n" + " " * indent)
 
 
+def write_string_array(path, array):
+    """Write a flattened array as one ASCII value per line."""
+    with path.open("w", encoding="ascii") as output:
+        for element in np.asarray(array).flatten():
+            output.write(f"{element}\n")
+
+
 def _load_database(results_dir):
     """Loads the test results database from the specified directory.
 
@@ -125,8 +132,25 @@ def append_results_to_report(result_dir, test_name, iteration, results):
         json.dump(db, file, indent=4)
 
 
+# Project-side layout, relative to the directory where TestIt is invoked
+TESTIT_DIR = "testit"
+CONFIG_DIR = os.path.join(TESTIT_DIR, "config")
+DEFAULT_CONFIG_NAME = "config.test"
+GOLDEN_MODULE_NAME = "testit_golden"
+
+
+def golden_module_path():
+    """Return the absolute path of the project's golden-function module."""
+    return os.path.join(os.getcwd(), TESTIT_DIR, f"{GOLDEN_MODULE_NAME}.py")
+
+
+def config_path(config_name):
+    """Return the absolute path of a configuration file in the config directory."""
+    return os.path.join(os.getcwd(), CONFIG_DIR, config_name)
+
+
 def dyn_load_func(function_name):
-    """Dynamic loading of a function from 'testit_golden.py'.
+    """Dynamic loading of a function from 'testit/testit_golden.py'.
 
     Args:
         function_name (str): The name of the function to load.
@@ -139,13 +163,11 @@ def dyn_load_func(function_name):
     Returns:
         function: The loaded function.
     """
-    module_name = "testit_golden"
-    module_path = os.path.join(os.getcwd(), f"{module_name}.py")
+    module_name = GOLDEN_MODULE_NAME
+    module_path = golden_module_path()
 
     if not os.path.exists(module_path):
-        raise ImportError(
-            f"Module {module_name} not found in current directory: {module_path}"
-        )
+        raise ImportError(f"Module {module_name} not found: {module_path}")
 
     spec = importlib.util.spec_from_file_location(module_name, module_path)
     module = importlib.util.module_from_spec(spec)
@@ -266,19 +288,25 @@ def get_sweep_parameters(iteration, parameters):
 
     for parameter in parameters:
         if isinstance(parameter["value"], list):
-            param_ranges.append(tuple(parameter["value"]))
-            steps.append(parameter["step"])
+            start_value, end_value = parameter["value"]
+            step = abs(parameter["step"])
+            direction = 1 if end_value >= start_value else -1
+            param_ranges.append((start_value, end_value, direction))
+            steps.append(step)
 
     # Compute range sizes
-    for (min_val, max_val), step in zip(param_ranges, steps):
-        size = (max_val - min_val) // step + 1
+    for (start_value, end_value, _), step in zip(param_ranges, steps):
+        size = abs(end_value - start_value) // step + 1
         range_sizes.append(size)
 
     step_product = 1
-    for idx, ((min_val, _), step) in enumerate(zip(param_ranges, steps)):
+    for idx, ((start_value, _, direction), step) in enumerate(
+        zip(param_ranges, steps)
+    ):
         if idx > 0:
             step_product *= range_sizes[idx - 1]
-        param_value = min_val + ((iteration // step_product) % range_sizes[idx]) * step
+        offset = ((iteration // step_product) % range_sizes[idx]) * step
+        param_value = start_value + (offset * direction)
         sweep_parameters.append(param_value)
 
     sweep_index = 0

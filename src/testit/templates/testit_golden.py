@@ -19,7 +19,7 @@
 
 import numpy as np
 
-def matrix_multiply(inputs: list, parameters: list) -> list:
+def matrix_multiply(inputs: list, parameters: list, dir: str) -> list:
     """
     Multiplies two NumPy matrices and returns the result.
 

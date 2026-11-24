@@ -15,6 +15,18 @@
 
 import argparse
 from . import run
+from . import testit_util
+
+
+def _add_config_argument(parser):
+    parser.add_argument(
+        "--config",
+        default=testit_util.DEFAULT_CONFIG_NAME,
+        help=(
+            f"Configuration file name inside {testit_util.CONFIG_DIR}/ "
+            f"(default: {testit_util.DEFAULT_CONFIG_NAME})"
+        ),
+    )
 
 
 def main():
@@ -43,6 +55,9 @@ def main():
         "--mammamia", action="store_true", help="Let's cook some pasta"
     )
 
+    _add_config_argument(run_parser)
+    _add_config_argument(report_parser)
+
     # Sorting key argument
     report_parser.add_argument(
         "--sort_key",
@@ -60,11 +75,11 @@ def main():
     args = parser.parse_args()
 
     if args.command == "run":
-        run.testit_run(args.nobuild, args.mammamia, args.sweep)
+        run.testit_run(args.nobuild, args.mammamia, args.sweep, args.config)
     elif args.command == "setup":
         run.testit_setup()
     elif args.command == "report":
-        run.testit_report(args.sort_key, not args.descending)
+        run.testit_report(args.sort_key, not args.descending, args.config)
 
 
 if __name__ == "__main__":
